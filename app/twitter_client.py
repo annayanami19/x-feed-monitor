@@ -425,11 +425,16 @@ class KlienAkun:
 
     # ------------------------------------------------------------------
     async def ambil_profil(self, paksa: bool = False) -> dict[str, Any]:
-        """Ambil profil akun (id, nama, avatar). Hasilnya di-cache.
+        """Ambil profil akun (id, nama, avatar).
 
-        Memakai cache `user_id` dari config supaya siklus polling rutin
-        tidak membuang 1 request per akun hanya untuk menerjemahkan
+        HASILNYA DISIMPAN ke `self.akun`, dan itu penting untuk menghemat
+        request: `user_id` yang tersimpan membuat siklus polling berikutnya
+        tidak perlu memanggil `UserByScreenName` lagi untuk menerjemahkan
         username -> id.
+
+        Tanpa penyimpanan ini, SETIAP siklus membuang 1 request per akun
+        hanya untuk hal yang tidak berubah — dua kali lipat pemakaian
+        kuota, dan akun jadi jauh lebih cepat kena rate-limit.
         """
         if self.akun.user_id and not paksa:
             return {
@@ -443,16 +448,34 @@ class KlienAkun:
         if pengguna is None:
             raise ValueError(f"Akun @{self.akun.username} tidak ditemukan")
 
-        return {
+        profil = {
             "user_id": str(getattr(pengguna, "id", "")),
             "display_name": str(getattr(pengguna, "displayname", "") or ""),
             "avatar_url": str(getattr(pengguna, "profileImageUrl", "") or ""),
         }
 
+        # Simpan ke objek akun supaya pemanggil berikutnya memakai cache ini.
+        # Ini juga yang membuat `poller` bisa memancarkan sinyal
+        # `profil_diperbarui` — sinyal itu hanya dikirim bila `user_id` terisi.
+        self.akun.user_id = profil["user_id"] or None
+        self.akun.display_name = profil["display_name"] or None
+        self.akun.avatar_url = profil["avatar_url"] or None
+
+        return profil
+
     async def ambil_postingan(self, batas: int = 20) -> list[Post]:
         """Ambil postingan terbaru akun ini.
 
         Memakai endpoint UserTweets (postingan asli + retweet, TANPA reply).
+
+        CATATAN KUOTA: 1 request mengembalikan sampai 40 postingan, jadi
+        `batas` sampai 40 tetap hanya 1 request. Di atas itu, tiap 40
+        postingan menambah 1 request lagi.
+
+        Tidak memakai `sinceId` untuk menghemat request: X tetap menghitung
+        satu halaman penuh sebagai satu request walau yang baru hanya sedikit.
+        Yang benar-benar menghemat adalah MENYIMPAN `user_id` (lihat
+        `ambil_profil`) — itu menghapus 1 request per akun per siklus.
         """
         api = await self._siapkan()
 

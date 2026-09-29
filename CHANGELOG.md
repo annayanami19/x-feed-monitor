@@ -12,6 +12,14 @@ Jenis perubahan: `Ditambahkan` · `Diubah` · `Usang` · `Dihapus` · `Diperbaik
 ## [Unreleased]
 
 ### Ditambahkan
+- **Pemantau kuota rate-limit di statusbar** — angka berawalan `kuota:` di
+  kanan-bawah jendela menampilkan pemakaian 15 menit terakhir dibanding batas
+  X, dengan warna yang mengikuti tingkatnya: abu-abu (aman), kuning
+  (peringatan ≥ 60%), merah (bahaya ≥ 85%). Tooltip-nya berisi rincian per
+  endpoint (`UserTweets`, `UserByScreenName`) dan perkiraan kapan batasnya
+  tercapai pada laju sekarang. Dihitung di `app/kuota.py` dari waktu tiap
+  request yang dikirim aplikasi ini sendiri — bukan dari statistik kumulatif
+  twscrape, karena yang X pakai adalah jendela 15 menit.
 - Ikon aplikasi — muncul di judul jendela, taskbar, Alt+Tab, dan system tray.
   Dibuat lewat `tools/buat_ikon.py` yang menghasilkan `assets/icon.ico` berisi
   7 ukuran (16/24/32/48/64/128/256 px), sehingga Windows bisa memakai ukuran
@@ -21,6 +29,12 @@ Jenis perubahan: `Ditambahkan` · `Diubah` · `Usang` · `Dihapus` · `Diperbaik
   error akibat race condition antara worker dan pembongkaran jendela.
 
 ### Diperbaiki
+- **Hemat 50% request per siklus** — `user_id` tiap akun kini tersimpan ke
+  config setelah pertama kali diambil. Sebelumnya hasilnya tidak kembali ke
+  objek akun, sehingga tiap siklus terpaksa memanggil `UserByScreenName`
+  (1 request) hanya untuk menerjemahkan ulang username → ID yang sebenarnya
+  tidak pernah berubah. Sekarang tiap siklus cukup 1 request `UserTweets`
+  per akun — pemakaian kuota turun dari ±2 menjadi ±1 request per akun.
 - **Aplikasi terlihat seperti crash saat ditutup** — menutup jendela bisa
   menggantung sampai **13 detik**, sehingga Windows menampilkan dialog
   "Not Responding". Penyebabnya `closeEvent` menunggu `worker.hentikan()`

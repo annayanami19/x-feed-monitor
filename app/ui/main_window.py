@@ -316,6 +316,11 @@ class JendelaUtama(QMainWindow):
         self.label_total = QLabel("")
         bar.addPermanentWidget(self.label_total)
 
+        # Pemakaian kuota X (rate-limit) — muncul sebelum versi supaya mata
+        # tertuju ke angka yang bisa berubah, bukan yang statis.
+        self.label_kuota = QLabel("")
+        bar.addPermanentWidget(self.label_kuota)
+
         # Versi di kanan statusbar — berguna saat melaporkan masalah, karena
         # langsung terlihat versi mana yang sedang dipakai.
         self.label_versi = QLabel(f"v{__version__}")
@@ -345,8 +350,32 @@ class JendelaUtama(QMainWindow):
         self.worker.siklus_selesai.connect(self._pada_siklus_selesai)
         self.worker.catatan.connect(self._pada_catatan)
         self.worker.profil_diperbarui.connect(self._pada_profil)
+        self.worker.kuota_diperbarui.connect(self._pada_kuota_diperbarui)
 
         self.worker.mulai()
+
+    def _pada_kuota_diperbarui(self, status) -> None:
+        """Tampilkan pemakaian kuota X di statusbar.
+
+        Handler ini hanya menyentuh widget, jadi aman dipanggil dari
+        sinyal yang datang saat jendela sedang menutup.
+        """
+        if self._sedang_tutup:
+            return
+
+        self.label_kuota.setText(status.ringkas())
+
+        # Warna mengikuti tingkat: abu-abu aman, kuning peringatan,
+        # merah bahaya — sama seperti bahasa visual aplikasi umumnya.
+        warna = {
+            "aman": "#8b98a5",
+            "peringatan": "#ffad1f",
+            "bahaya": "#f4212e",
+        }.get(status.tingkat, "#8b98a5")
+        self.label_kuota.setStyleSheet(
+            f"color: {warna}; padding-left: 8px;"
+        )
+        self.label_kuota.setToolTip(status.saran())
 
     def _pada_siklus_mulai(self, jumlah: int) -> None:
         self.aksi_refresh.setEnabled(False)

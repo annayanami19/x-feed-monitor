@@ -253,6 +253,18 @@ Jumlah postingan akun itu **di database** (bukan yang sedang tampil).
 
 Filter tersimpan otomatis — saat aplikasi dibuka lagi, pilihanmu tetap sama.
 
+### Indikator kuota di statusbar
+
+Di kanan-bawah jendela ada angka berawalan **kuota:** — pemakaian rate-limit 15 menit terakhir dari request yang dikirim aplikasi ini sendiri.
+
+| Warna | Arti |
+|---|---|
+| Abu-abu | Aman (di bawah 60% batas) |
+| Kuning | Peringatan — sempurnakan pengaturan bila mau menambah akun |
+| Merah | Bahaya — jangan tambah beban; tunggu ±15 menit sampai ter-reset |
+
+Arahkan kursor ke angkanya untuk melihat rincian per endpoint dan perkiraan kapan batasnya tercapai. Kalau sering masuk zona kuning/merah: perpanjang **Interval otomatis**, kurangi **Postingan per akun** (di atas 40 menambah request), atau kurangi jumlah akun. Penghematan terbesar sudah otomatis: `user_id` tiap akun di-cache, jadi tiap siklus cukup 1 request per akun.
+
 ---
 
 ## 7. Pengaturan

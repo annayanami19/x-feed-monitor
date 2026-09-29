@@ -182,6 +182,16 @@ Satu siklus polling memancarkan `postingan_masuk` **sekali per akun**. Dengan 30
 
 **Solusi:** `QTimer` 400 ms yang menggabungkan semuanya jadi satu pembacaan.
 
+### 9. Pemantau kuota dihitung sendiri (bukan dibaca dari twscrape)
+
+Rate-limit X tidak terlihat dari dalam aplikasi — pengguna baru tahu setelah kena, dan saat itu semua akun sudah berhenti diperbarui ±15 menit. Modul `app/kuota.py` membuat pemakaian itu terlihat **sebelum** menjadi masalah: label di statusbar berubah warna (abu → kuning → merah) seiring pemakaian mendekati batas.
+
+**Mengapa menghitung sendiri, bukan membaca statistik twscrape:** twscrape menyimpan jumlah request di DB pool-nya tapi angkanya **kumulatif sejak pool dibuat** — tidak bisa menjawab "berapa request dalam 15 menit terakhir?", padahal jendela 15 menit itulah yang X pakai. Maka `PemantauKuota` mencatat waktu tiap request (`time.monotonic`) dalam `deque` per endpoint, membuang yang kedaluwarsa, dan menghitung persentase terhadap `BATAS_ENDPOINT` yang diketahui.
+
+**Alur datanya satu arah tanpa kunci:** thread worker memanggil `_kuota.catat(endpoint)` setiap request selesai, lalu di akhir siklus memancarkan `kuota_diperbarui` berisi `StatusKuota` (objek dataclass polos). GUI hanya mengubah label — tidak pernah menyentuh `PemantauKuota` langsung, jadi tidak ada akses lintas-thread ke struktur internalnya. `atur_auth_utama()` memanggil `_kuota.reset()` karena kuota berpindah milik akun X yang lain.
+
+**Penghematan yang benar** sudah tertanam di `ambil_profil()`: `user_id` tiap akun disimpan sekali ke config, sehingga tiap siklus cukup 1 request `UserTweets` per akun. `sinceId` sengaja **tidak** dipakai — X tetap menghitung satu halaman penuh sebagai satu request walau postingan barunya sedikit, jadi tidak menghemat apa-apa.
+
 ---
 
 ## Titik rawan & penanganannya

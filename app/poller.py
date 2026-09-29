@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from .kuota import PemantauKuota
 from .models import Account, Kredensial
 from .twitter_client import KlienAkun, jelaskan_error
 
@@ -53,6 +54,7 @@ class PollerWorker(QObject):
     siklus_selesai = pyqtSignal(object)             # list[HasilAkun]
     catatan = pyqtSignal(str)                       # pesan log untuk statusbar
     profil_diperbarui = pyqtSignal(str, object)     # (account_id, dict profil)
+    kuota_diperbarui = pyqtSignal(object)           # StatusKuota
 
     def __init__(self) -> None:
         super().__init__()
@@ -70,6 +72,10 @@ class PollerWorker(QObject):
         self._event: asyncio.Event | None = None
         #: id akun yang cookie-nya wajib ditulis ulang sebelum dipakai.
         self._paksa_cookie: set[str] = set()
+
+        #: Pemantau pemakaian kuota — dicatat di thread ini, dibaca GUI
+        #: lewat sinyal supaya tidak ada akses lintas-thread ke datanya.
+        self._kuota = PemantauKuota()
 
     # ------------------------------------------------------------------
     # Siklus hidup
@@ -178,6 +184,9 @@ class PollerWorker(QObject):
         for akun in self._akun:
             if not akun.punya_auth_sendiri():
                 self._paksa_cookie.add(akun.id)
+        # Kuota rate-limit dihitung per akun X; kredensial berganti berarti
+        # jendela pemakaian lama milik akun lain — mulai dari nol.
+        self._kuota.reset()
 
     def atur_opsi(self, batas: int, jeda: float) -> None:
         self._batas = max(1, int(batas))
@@ -280,6 +289,8 @@ class PollerWorker(QObject):
                 await self._tidur_bisa_dibatalkan(self._jeda * random.uniform(0.8, 1.2))
 
         self._berjalan = False
+        # Pancarkan pemakaian kuota supaya GUI bisa menampilkannya.
+        self.kuota_diperbarui.emit(self._kuota.status())
         self.siklus_selesai.emit(hasil)
 
     async def _tidur_bisa_dibatalkan(self, detik: float) -> None:
@@ -302,6 +313,12 @@ class PollerWorker(QObject):
         # `profil_diperbarui`, dan GUI yang menuliskannya ke objek asli.
         akun_kerja = Account.dari_dict(akun.ke_dict())
 
+        # Catat profil SEBELUM diproses. `ambil_postingan()` akan mengisi
+        # `akun_kerja.user_id` lewat `ambil_profil()`, dan kita perlu tahu
+        # apakah nilainya BARU didapat — itulah yang harus dikabarkan ke GUI
+        # supaya tersimpan ke config.
+        profil_lama = (akun.user_id, akun.display_name, akun.avatar_url)
+
         # Kredensial utama ikut dikirim: akun tanpa kredensial sendiri
         # memakainya, dan pool yang dipilih mengikuti itu.
         klien = KlienAkun(akun_kerja, self._auth_utama)
@@ -314,11 +331,30 @@ class PollerWorker(QObject):
                 self._paksa_cookie.discard(akun.id)
                 await klien.segarkan_cookie()
 
+            # Catat request untuk pemantauan kuota.
+            #
+            # UserByScreenName HANYA dipanggil bila `user_id` belum tersimpan.
+            # Setelah tersimpan sekali, siklus berikutnya cukup 1 request
+            # (UserTweets) per akun — inilah penghematan terbesarnya.
+            if not akun_kerja.user_id:
+                self._kuota.catat("UserByScreenName")
+
             posts = await klien.ambil_postingan(self._batas)
+            self._kuota.catat("UserTweets")
             ringkas.jumlah = len(posts)
 
-            # Kabari GUI bila profil baru didapat (nama/avatar untuk panel).
-            if akun_kerja.user_id:
+            # Kabari GUI bila profilnya BARU didapat atau BERUBAH.
+            #
+            # Ini yang membuat `user_id` tersimpan ke config. Setelah
+            # tersimpan, siklus berikutnya tidak perlu memanggil
+            # UserByScreenName lagi — menghemat 1 request per akun per
+            # siklus, yang berarti setengah dari total pemakaian kuota.
+            profil_baru = (
+                akun_kerja.user_id,
+                akun_kerja.display_name,
+                akun_kerja.avatar_url,
+            )
+            if akun_kerja.user_id and profil_baru != profil_lama:
                 self.profil_diperbarui.emit(akun.id, {
                     "user_id": akun_kerja.user_id,
                     "display_name": akun_kerja.display_name or "",

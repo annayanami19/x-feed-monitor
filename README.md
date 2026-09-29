@@ -261,6 +261,18 @@ Rate-limit X dihitung **per akun X**, bukan per akun target. Kalau semua akun ta
 
 30 akun dengan interval 5 menit memakai ±20% kuota. Untuk memantau lebih banyak akun, perpanjang interval, kurangi **Postingan per akun**, atau tambahkan auth khusus supaya kuotanya terpisah.
 
+### Indikator kuota di statusbar
+
+Kanan-bawah jendela menampilkan pemakaian kuota 15 menit terakhir, dihitung dari request yang dikirim aplikasi ini sendiri:
+
+| Warna | Arti | Tindakan |
+|---|---|---|
+| Abu-abu | Aman (< 60% batas) | Tidak perlu apa-apa |
+| Kuning | Peringatan (60–85%) | Sempurnakan: kurangi akun / perpanjang interval |
+| Merah | Bahaya (≥ 85%) | Hentikan refresh, tunggu ±15 menit |
+
+Arahkan kursor ke angkanya untuk rincian per endpoint (`UserTweets`, `UserByScreenName`) dan perkiraan kapan batasnya tercapai pada laju sekarang. Perlu diketahui: penghematan terbesar sudah otomatis — `user_id` tiap akun disimpan setelah pertama kali diambil, sehingga tiap siklus hanya memakai 1 request (`UserTweets`) per akun, bukan 2.
+
 ---
 
 ## Pemecahan masalah
@@ -274,7 +286,7 @@ Rate-limit X dihitung **per akun X**, bukan per akun target. Kalau semua akun ta
 | **"Python terdeteksi tapi tidak bisa dijalankan"** | Matikan App execution alias: Settings → Apps → Advanced app settings → App execution aliases → matikan `python.exe`. |
 | **Postingan berhenti muncul padahal akun normal** | X mengganti endpoint internalnya. Jalankan **`update.bat`**. |
 | **"Kredensial tidak valid atau kedaluwarsa"** | Cookie sudah tidak berlaku (logout / ganti password). Ambil ulang `auth_token` + `ct0`. |
-| **"Kena rate-limit dari X"** | Perpanjang **Interval otomatis**, lalu tunggu ±15 menit. |
+| **"Kena rate-limit dari X"** | Periksa indikator kuota di statusbar. Perpanjang **Interval otomatis**, lalu tunggu ±15 menit sampai kuota ter-reset. |
 | **"Ditolak X (403)"** | Akunmu dibatasi X. Login ulang di browser, atau pakai akun lain sebagai auth. |
 | **Akun private tidak muncul postingannya** | Akun yang dipakai untuk auth **harus mem-follow** akun private tersebut. |
 | **Notifikasi tidak muncul** | Settings → Sistem → Notifikasi → pastikan notifikasi aplikasi ini diizinkan. |
