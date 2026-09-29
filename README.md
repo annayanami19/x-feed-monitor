@@ -325,6 +325,13 @@ x-feed-monitor/
 ├── CHANGELOG.md                            Riwayat perubahan
 ├── LICENSE                                 Lisensi MIT
 │
+├── assets/                                 Aset statis (ikut repositori)
+│   ├── icon.ico                            Ikon Windows, 7 ukuran sekaligus
+│   └── icon.png                            Versi 256px
+│
+├── tools/                                  Skrip bantu (tidak dipakai saat runtime)
+│   └── buat_ikon.py                        Membuat ulang ikon di atas
+│
 ├── app/                                    Kode aplikasi
 │   ├── twitter_client.py                   Satu-satunya file yang bicara ke X
 │   ├── poller.py                           Pengambilan data di thread terpisah
@@ -334,6 +341,7 @@ x-feed-monitor/
 │   ├── filters.py                          Logika filter
 │   ├── thumbnails.py                       Unduh + cache gambar
 │   ├── notifier.py                         Notifikasi desktop
+│   ├── ikon.py                             Pemuat ikon aplikasi
 │   ├── compat.py                           Perbaikan pythonw (sys.stderr None)
 │   ├── paths.py                            Semua path terpusat
 │   └── ui/                                 Seluruh tampilan (PyQt6)
@@ -405,6 +413,24 @@ pythonw app.py                  # tanpa console (seperti run.bat)
 
 **Aturan utama:** `app/ui/` tidak pernah mengimpor `twscrape`. Semua akses jaringan
 lewat `poller` → `twitter_client`.
+
+### Membuat ulang ikon
+
+Ikon dibuat dari kode, bukan file biner yang di-commit tanpa penjelasan:
+
+```bash
+python tools/buat_ikon.py
+```
+
+Menghasilkan `assets/icon.ico` (7 ukuran: 16/24/32/48/64/128/256 px) dan
+`assets/icon.png` (256px).
+
+**Mengapa banyak ukuran?** Windows memilih ukuran berbeda tergantung tempatnya —
+16px di judul jendela, 32px di taskbar, 256px di Explorer. Satu file `.ico`
+yang berisi semuanya membuat ikon tetap tajam di semua tempat.
+
+Ingin mengubah warna atau bentuk? Semua ada di `tools/buat_ikon.py` — bagian
+warna di atas file, dan bentuk di fungsi `_gambar_ikon()`.
 
 ### Menambah versi baru
 

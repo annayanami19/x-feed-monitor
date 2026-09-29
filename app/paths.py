@@ -12,6 +12,11 @@ from pathlib import Path
 # x-feed-monitor/  (app/paths.py -> app/ -> root)
 BASE_DIR: Path = Path(__file__).resolve().parent.parent
 
+# Folder aset statis (ikon) — ikut masuk repositori, bukan data runtime.
+ASSETS_DIR: Path = BASE_DIR / "assets"
+ICON_ICO: Path = ASSETS_DIR / "icon.ico"      # ikon Windows multi-ukuran
+ICON_PNG: Path = ASSETS_DIR / "icon.png"      # 256px, untuk platform lain
+
 # Folder data runtime — SEMUANYA di sini supaya mudah di-backup / dihapus.
 # Isi folder ini TIDAK boleh masuk git (lihat .gitignore) karena memuat
 # auth_token.

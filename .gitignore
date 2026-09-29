@@ -24,6 +24,10 @@
 data/*
 !data/.gitkeep
 
+# PENTING: folder `assets/` TIDAK diabaikan dan MEMANG harus ikut ter-commit.
+# Isinya berkas ikon aplikasi (icon.ico, icon.png) yang dibutuhkan saat
+# dijalankan. Jangan menambahkan pola yang mengabaikan *.ico / *.png / assets/.
+
 # Cadangan otomatis kalau config.json rusak (dibuat oleh app/config.py).
 # Ditulis eksplisit karena polanya tidak tercakup `data/*` bila file dibuat
 # di lokasi lain.

@@ -12,9 +12,10 @@ untuk postingan yang sama.
 from __future__ import annotations
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSystemTrayIcon
 
+from .ikon import ikon_aplikasi
 from .models import Post
 
 #: Maksimum notifikasi per siklus. Kalau akun baru di-import, jangan
@@ -45,18 +46,15 @@ class Notifier(QObject):
 
         self._tray = QSystemTrayIcon(parent)
         self._tray.setToolTip("X Feed Monitor")
-        self._tray.setIcon(self._ikon_default())
+        # Ikon tray memakai ikon aplikasi yang sama. Windows memilih sendiri
+        # ukuran yang sesuai (biasanya 16px) dari berkas .ico multi-ukuran.
+        self._tray.setIcon(ikon_aplikasi())
         self._tray.messageClicked.connect(self._pada_klik)
         self._terakhir: Post | None = None
 
     # ------------------------------------------------------------------
-    def _ikon_default(self) -> QIcon:
-        """Ikon sederhana (kotak biru) — supaya tray tetap muncul tanpa aset."""
-        pixmap = QPixmap(32, 32)
-        pixmap.fill()
-        return QIcon(pixmap)
-
     def pasang_ikon(self, ikon: QIcon) -> None:
+        """Ganti ikon tray (opsional — dipakai kalau ikon perlu berubah)."""
         if not ikon.isNull():
             self._tray.setIcon(ikon)
 

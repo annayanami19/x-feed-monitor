@@ -12,7 +12,10 @@ Jenis perubahan: `Ditambahkan` · `Diubah` · `Usang` · `Dihapus` · `Diperbaik
 ## [Unreleased]
 
 ### Ditambahkan
-- (belum ada)
+- Ikon aplikasi — muncul di judul jendela, taskbar, Alt+Tab, dan system tray.
+  Dibuat lewat `tools/buat_ikon.py` yang menghasilkan `assets/icon.ico` berisi
+  7 ukuran (16/24/32/48/64/128/256 px), sehingga Windows bisa memakai ukuran
+  yang tepat di tiap tempat.
 
 ---
 

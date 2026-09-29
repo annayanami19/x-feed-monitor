@@ -12,7 +12,7 @@ feed_view.py — file ini hanya menyatukan.
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QPixmap
+from PyQt6.QtGui import QAction, QColor, QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -36,6 +36,7 @@ from .. import config as cfg
 from .. import __app_name__, __version__
 from ..db import RiwayatDB
 from ..filters import KriteriaFilter, RENTANG_PILIHAN, batas_waktu, saring
+from ..ikon import ikon_aplikasi
 from ..models import Account, Post, waktu_sekarang
 from ..notifier import Notifier
 from ..poller import HasilAkun, PollerWorker
@@ -82,7 +83,10 @@ class JendelaUtama(QMainWindow):
 
         # --- tampilan ---
         self.setWindowTitle(f"{__app_name__} v{__version__}")
-        self.setWindowIcon(self._buat_ikon())
+        # Ikon dari assets/icon.ico — berisi 7 ukuran sekaligus, sehingga
+        # Windows bisa memakai ukuran yang tepat di judul jendela, taskbar,
+        # Alt+Tab, dan shortcut.
+        self.setWindowIcon(ikon_aplikasi())
         self.resize(1360, 880)
         self.setMinimumSize(940, 600)
 
@@ -131,23 +135,6 @@ class JendelaUtama(QMainWindow):
 
     # ==================================================================
     # Ikon
-    # ==================================================================
-    def _buat_ikon(self) -> QIcon:
-        """Ikon aplikasi sederhana (kotak biru dengan huruf X)."""
-        pixmap = QPixmap(64, 64)
-        pixmap.fill(QColor(ambil_palet(self.config.get("tema", "dark")).aksen))
-        from PyQt6.QtGui import QPainter
-
-        painter = QPainter(pixmap)
-        painter.setPen(QColor("#ffffff"))
-        font = QFont()
-        font.setPointSize(34)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "X")
-        painter.end()
-        return QIcon(pixmap)
-
     # ==================================================================
     # Perakitan UI
     # ==================================================================

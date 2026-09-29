@@ -47,6 +47,7 @@ def main() -> int:
     from PyQt6.QtWidgets import QApplication, QMessageBox
 
     from app import __app_name__, __version__
+    from app.ikon import ikon_aplikasi
 
     pastikan_folder()
 
@@ -55,6 +56,14 @@ def main() -> int:
     app.setApplicationName(__app_name__)
     app.setApplicationVersion(__version__)
     app.setOrganizationName("x-feed-monitor")
+
+    # Ikon di level APLIKASI, bukan hanya di jendela.
+    #
+    # Ini yang membuat taskbar Windows menampilkan ikon yang benar. Kalau
+    # hanya `setWindowIcon()` di jendela, taskbar kadang masih memakai ikon
+    # default Python karena Windows mengelompokkan jendela berdasarkan
+    # identitas APLIKASI, bukan jendelanya.
+    app.setWindowIcon(ikon_aplikasi())
 
     # Tutup aplikasi saat jendela terakhir ditutup (perilaku yang diharapkan
     # untuk aplikasi desktop biasa).
