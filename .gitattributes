@@ -1,0 +1,120 @@
+# =============================================================================
+#  x-feed-monitor — .gitattributes
+# =============================================================================
+#
+#  Mengatur cara Git memperlakukan file saat masuk/keluar repositori.
+#
+#  MASALAH YANG DIPECAHKAN
+#  -----------------------
+#  Windows memakai akhir baris CRLF, Linux/macOS memakai LF. Tanpa aturan ini,
+#  Git bisa mengubah akhir baris saat checkout (lihat peringatan
+#  "LF will be replaced by CRLF"), yang menyebabkan:
+#
+#    * diff berisik — satu file terlihat "berubah" padahal isinya sama
+#    * file .bat bisa rusak saat di-clone di sistem lain
+#
+#  Aturannya:
+#    * File teks  -> disimpan sebagai LF di repositori
+#    * File .bat  -> dipaksa CRLF, karena cmd.exe di Windows memerlukannya
+#    * File biner -> tidak disentuh sama sekali
+#
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Deteksi otomatis
+# -----------------------------------------------------------------------------
+# File yang tidak punya aturan lebih spesifik di bawah akan dideteksi otomatis
+# sebagai teks atau biner, lalu dinormalisasi.
+* text=auto
+
+
+# -----------------------------------------------------------------------------
+# Kode sumber Python — LF
+# -----------------------------------------------------------------------------
+# `eol=lf` ditulis EKSPLISIT, bukan hanya `text`.
+#
+# Alasannya: `text` saja hanya menandai "ini file teks" dan Git masih memakai
+# setelan `core.autocrlf` untuk menentukan format di working copy. Di Windows
+# setelan itu bernilai `true`, sehingga Git tetap ingin mengubah LF menjadi
+# CRLF — dan peringatan "LF will be replaced by CRLF" tetap muncul.
+#
+# Dengan `eol=lf`, Git dipaksa memakai LF di working copy, mengabaikan
+# `core.autocrlf`. Hasilnya repositori bersih dan isinya sama di semua sistem.
+*.py    text eol=lf diff=python
+*.pyi   text eol=lf diff=python
+*.pyw   text eol=lf diff=python
+
+
+# -----------------------------------------------------------------------------
+# Skrip Windows — WAJIB CRLF
+# -----------------------------------------------------------------------------
+# cmd.exe membaca batch file dengan asumsi akhir baris CRLF. File .bat yang
+# tersimpan sebagai LF bisa gagal dijalankan atau berperilaku aneh (mis. label
+# `goto` tidak ditemukan, karakter aneh muncul di output).
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+
+# -----------------------------------------------------------------------------
+# Dokumentasi & konfigurasi — LF
+# -----------------------------------------------------------------------------
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.ini   text eol=lf
+*.cfg   text eol=lf
+
+# .gitignore dan .gitattributes sendiri juga LF
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+
+# File tanpa ekstensi
+LICENSE   text eol=lf
+Makefile  text eol=lf
+
+# Berkas penanda folder (dipakai agar struktur data/ terlihat di repo)
+.gitkeep  text eol=lf
+
+
+# -----------------------------------------------------------------------------
+# Berkas biner — jangan disentuh
+# -----------------------------------------------------------------------------
+# Git tidak boleh mencoba menerjemahkan akhir baris di file-file ini.
+*.db      binary
+*.db-wal  binary
+*.db-shm  binary
+*.sqlite  binary
+*.sqlite3 binary
+
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.webp    binary
+
+*.pdf     binary
+*.zip     binary
+*.gz      binary
+*.7z      binary
+
+*.exe     binary
+*.dll     binary
+*.so      binary
+*.pyd     binary
+
+
+# -----------------------------------------------------------------------------
+# Berkas yang tidak perlu ikut saat repo diunduh sebagai arsip
+# -----------------------------------------------------------------------------
+# Berguna kalau seseorang mengunduh "Source code (zip)" dari GitHub.
+.github/          export-ignore
+tests/            export-ignore
+*.pyc             export-ignore
+__pycache__/      export-ignore
+.pytest_cache/    export-ignore

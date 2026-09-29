@@ -1,0 +1,16 @@
+Folder ini menampung seluruh data runtime aplikasi:
+
+  config.json              pengaturan + daftar akun + auth value (RAHASIA)
+  feed.db                  riwayat postingan (SQLite)
+  pools/<id>.db            sesi twscrape, satu file per akun
+  cache/thumbs/            cache thumbnail
+
+Dibuat otomatis saat aplikasi pertama kali dijalankan.
+
+PERINGATAN KEAMANAN
+===================
+config.json memuat auth_token akun X dalam bentuk TIDAK terenkripsi.
+Jangan pernah membagikan, mengunggah, atau meng-commit folder ini.
+
+Seluruh isi folder ini sudah dikecualikan dari git lewat .gitignore.
+File ini hanya ada supaya struktur foldernya tetap terlihat di repositori.

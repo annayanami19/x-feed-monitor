@@ -1,0 +1,144 @@
+# =============================================================================
+#  x-feed-monitor — .gitignore
+# =============================================================================
+#
+#  ⚠️  BAGIAN PALING PENTING: folder `data/`
+#
+#  `data/config.json` memuat `auth_token` + `ct0` akun X dalam bentuk
+#  TIDAK terenkripsi. Nilai itu setara dengan password akun — siapa pun yang
+#  memilikinya bisa mengakses akun tersebut sepenuhnya.
+#
+#  SELURUH isi folder `data/` karena itu dikecualikan, kecuali `.gitkeep`.
+#  Jangan pernah menghapus aturan ini.
+#
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Data runtime — WAJIB diabaikan (berisi kredensial)
+# -----------------------------------------------------------------------------
+#
+# `data/*` (bukan `data/`) dipakai supaya pengecualian `.gitkeep` di bawahnya
+# tetap bekerja: pola `data/` akan mengabaikan seluruh folder termasuk isi
+# pengecualiannya.
+data/*
+!data/.gitkeep
+
+# Cadangan otomatis kalau config.json rusak (dibuat oleh app/config.py).
+# Ditulis eksplisit karena polanya tidak tercakup `data/*` bila file dibuat
+# di lokasi lain.
+*.json.rusak
+config.json.rusak
+
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribusi / packaging
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+MANIFEST
+
+
+# -----------------------------------------------------------------------------
+# Virtual environment
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+
+# -----------------------------------------------------------------------------
+# Pengujian & cache alat
+# -----------------------------------------------------------------------------
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.pyre/
+
+
+# -----------------------------------------------------------------------------
+# Log & error
+# -----------------------------------------------------------------------------
+error.log
+*.log
+logs/
+
+
+# -----------------------------------------------------------------------------
+# Database lokal
+# -----------------------------------------------------------------------------
+#
+# Catatan: TIDAK memakai pola `*.db` yang terlalu luas, karena bisa ikut
+# mengabaikan file sah di masa depan. Yang diabaikan hanya file database
+# yang memang dibuat aplikasi ini.
+data/feed.db
+data/feed.db-*
+data/pools/
+*.sqlite
+*.sqlite3
+*.db-journal
+
+
+# -----------------------------------------------------------------------------
+# Editor & IDE
+# -----------------------------------------------------------------------------
+.vscode/
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+
+# -----------------------------------------------------------------------------
+# Sistem operasi
+# -----------------------------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+
+# -----------------------------------------------------------------------------
+# Rahasia — jaring pengaman tambahan
+# -----------------------------------------------------------------------------
+#
+# Aplikasi ini tidak pernah membuat file-file ini, tapi kalau suatu saat ada
+# (mis. dari eksperimen lokal), lebih baik tertangkap di sini daripada
+# tidak sengaja ter-commit.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*serviceAccount*.json

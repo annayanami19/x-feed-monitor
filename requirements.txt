@@ -1,0 +1,30 @@
+# x-feed-monitor — dependency
+#
+# Cara install manual (biasanya tidak perlu, run.bat sudah otomatis):
+#   python -m pip install -r requirements.txt
+#
+# ---------------------------------------------------------------
+# PyQt6 — framework GUI
+# ---------------------------------------------------------------
+PyQt6>=6.7,<7
+
+# ---------------------------------------------------------------
+# twscrape — mesin pengambil data dari X (GraphQL internal X)
+#
+# Versi 0.20.1 dirilis 2026-08-25 dan masih aktif dirawat.
+# TIDAK memakai upper-bound supaya update.bat bisa menarik perbaikan
+# query ID terbaru saat X merotasi endpoint-nya.
+#
+# Ekstra [curl] memasang curl-cffi -> TLS fingerprint menyerupai browser
+# asli. Ini penting untuk mengurangi risiko 403 / "looks automated".
+# ---------------------------------------------------------------
+twscrape[curl]>=0.20.1
+
+# ---------------------------------------------------------------
+# Pillow — mengecilkan & mengompres thumbnail sebelum disimpan
+#
+# Tanpa ini thumbnail disimpan apa adanya, sehingga cache di
+# data/cache/thumbs/ jauh lebih besar. Kode di app/thumbnails.py sudah
+# punya fallback bila Pillow tidak ada, tapi hasilnya lebih boros tempat.
+# ---------------------------------------------------------------
+Pillow>=10.0
