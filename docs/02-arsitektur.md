@@ -360,12 +360,76 @@ run.bat
     QTimer.singleShot(600, mulai_refresh)
         │
         ▼
-  closeEvent:
-    hentikan timer
-    worker.hentikan()   → berhenti di antara akun (tidur dipotong 0,25 dtk)
-    thumbnail.hentikan()
-    simpan config
-    db.tutup()
+  closeEvent:  (urutan ini PENTING — lihat penjelasan di bawah)
+    1. _sedang_tutup = True      → tolak pekerjaan yang datang terlambat
+    2. _putus_sinyal_worker()    → tutup jalur worker → UI
+    3. hentikan timer, simpan config, db.tutup()
+    4. notifier + thumbnail berhenti
+    5. worker.hentikan(1000ms)   → kalau gagal: paksa_hentikan(600ms)
 ```
 
 Catatan: menutup jendela = **keluar total** (pilihan pengguna). Notifikasi dan polling berhenti.
+
+---
+
+## Penutupan jendela: mengapa urutannya begitu
+
+Ini bagian yang pernah bermasalah, dan urutannya tidak boleh ditukar.
+
+### Masalah aslinya: jendela menggantung 13 detik
+
+Versi awal memanggil `worker.hentikan()` yang menunggu sampai **15 detik**.
+Kalau worker sedang di tengah request jaringan ke X, jendela membeku selama
+itu — Windows menganggapnya "Not Responding" dan menampilkan dialog yang
+**terlihat seperti aplikasi crash**.
+
+Request jaringan yang sedang berjalan **tidak bisa dibatalkan**: Python harus
+menunggu socket selesai atau timeout. Dengan beberapa akun, totalnya bisa
+belasan detik.
+
+**Perbaikan:** worker diberi 1 detik untuk berhenti rapi. Kalau belum,
+`paksa_hentikan()` memanggil `QThread.terminate()`.
+
+Hasil terukur: **13,15 detik → 1,62 detik** (uji: `tools/uji_tutup.py`).
+
+### Bahaya kedua: handler menyentuh objek yang sudah dibongkar
+
+Worker berjalan di thread sendiri dan bisa memancarkan sinyal **kapan saja**.
+Handler-nya menyentuh database dan widget:
+
+| Handler | Menyentuh | Error kalau terlambat |
+|---|---|---|
+| `_pada_postingan_masuk` | `self.db.simpan_banyak()` | `ProgrammingError: Cannot operate on a closed database` |
+| `_pada_siklus_mulai` | `self.aksi_refresh` | `RuntimeError: wrapped C/C++ object has been deleted` |
+
+**Tiga lapis pengaman:**
+
+1. **`_putus_sinyal_worker()`** dipanggil **sebelum** `db.tutup()`.
+   Setelah sinyal diputus, apa pun yang dilakukan worker tidak akan
+   menyentuh objek yang sedang dibongkar. Ini pengaman utama.
+
+2. **Penanda `_sedang_tutup`** diset paling awal. `muat_ulang_feed()` dan
+   `_pada_postingan_masuk()` langsung keluar bila penanda ini aktif —
+   menangkap kasus timer yang terlanjur memancarkan sinyalnya.
+
+3. **`paksa_hentikan()` dipanggil setelah sinyal diputus**, sehingga
+   penghentian paksa tidak bisa memicu error di UI.
+
+### Mengapa `terminate()` aman di sini
+
+`QThread.terminate()` memang tidak rapi, tapi pada tahap ini aplikasi sedang
+ditutup dan menggantung lebih buruk daripada penghentian yang tidak rapi:
+
+- Database memakai **WAL** — penulisan yang belum selesai di-rollback otomatis
+- **Config sudah disimpan** sebelum fungsi ini dipanggil
+- Yang tertahan hanyalah **request jaringan** yang hasilnya belum tentu ada
+
+### Cara menguji ulang
+
+```bash
+python tools/uji_tutup.py
+```
+
+Menutup jendela pada 6 waktu berbeda relatif terhadap siklus polling
+(200ms sampai 4000ms), lalu melaporkan durasi penutupan dan error yang
+tertangkap. Semua skenario harus lulus di bawah 3 detik tanpa error.

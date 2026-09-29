@@ -67,6 +67,13 @@ class JendelaUtama(QMainWindow):
         self.notifier = Notifier(self)
         self.worker: PollerWorker | None = None
 
+        #: True saat jendela sedang ditutup. Dipakai untuk menolak pekerjaan
+        #: yang datang terlambat — mis. timer yang sudah terlanjur
+        #: memancarkan sinyal sebelum sempat dihentikan. Tanpa penanda ini,
+        #: handler tersebut akan menyentuh database yang sudah ditutup dan
+        #: memunculkan "Cannot operate on a closed database".
+        self._sedang_tutup = False
+
         # Akun yang dicentang di panel filter.
         #
         # Kalau kriteria tersimpan berarti "semua akun", himpunan ini harus
@@ -365,7 +372,14 @@ class JendelaUtama(QMainWindow):
         self._perbarui_status_akun()
 
     def _pada_postingan_masuk(self, posts: list[Post], ringkas: HasilAkun) -> None:
-        """Simpan ke DB; notifikasi hanya untuk yang benar-benar baru."""
+        """Simpan ke DB; notifikasi hanya untuk yang benar-benar baru.
+
+        Menolak berjalan saat jendela sedang ditutup — menulis ke database
+        yang sudah ditutup akan memunculkan ProgrammingError.
+        """
+        if self._sedang_tutup:
+            return
+
         baru = self.db.simpan_banyak(posts)
         self.db.perbarui_statistik(posts)
 
@@ -443,7 +457,15 @@ class JendelaUtama(QMainWindow):
         self.worker.minta_refresh()
 
     def muat_ulang_feed(self) -> None:
-        """Baca ulang dari DB dengan filter aktif, lalu tampilkan."""
+        """Baca ulang dari DB dengan filter aktif, lalu tampilkan.
+
+        Menolak berjalan saat jendela sedang ditutup: timer pembacaan ulang
+        bisa terlanjur memancarkan sinyalnya sebelum sempat dihentikan, dan
+        saat itu database sudah ditutup.
+        """
+        if self._sedang_tutup:
+            return
+
         posts = self.db.ambil(
             batas=BATAS_TAMPIL,
             akun_ids=self.kriteria.akun_dipilih() or None,
@@ -776,20 +798,140 @@ class JendelaUtama(QMainWindow):
     # Siklus hidup
     # ==================================================================
     def closeEvent(self, event) -> None:  # noqa: N802 - API Qt
-        """Tutup = keluar total (sesuai pilihan pengguna)."""
+        """Tutup = keluar total (sesuai pilihan pengguna).
+
+        MENGAPA URUTANNYA BEGINI
+        ========================
+        Versi sebelumnya memanggil `worker.hentikan()` yang menunggu sampai
+        15 detik. Kalau worker sedang di tengah request jaringan ke X,
+        jendela membeku selama itu — dan Windows menampilkan dialog
+        "Not Responding" yang terlihat seperti aplikasi crash.
+
+        Sekarang urutannya:
+          1. tampilkan status "Menutup…" (supaya pengguna tahu prosesnya jalan)
+          2. PUTUS SINYAL worker — menutup semua jalur worker → UI
+          3. simpan data & tutup database
+          4. hentikan thumbnail & notifier
+          5. minta worker berhenti (1 detik); kalau tidak, hentikan paksa
+
+        Langkah 2 harus SEBELUM langkah 3, dan alasannya ada di komentar
+        di bawah. Data pengguna sudah tersimpan di langkah 3, jadi
+        penghentian paksa di langkah 5 tidak merugikan apa pun.
+        """
+        # --- 1. Tandai sedang menutup + beri tahu pengguna ---
+        #
+        # Penanda ini harus diset PALING AWAL: setelah ini, setiap handler
+        # yang datang terlambat akan langsung keluar tanpa menyentuh apa pun.
+        self._sedang_tutup = True
+
+        # Tanpa ini, kalau proses memakan lebih dari ~1 detik, pengguna
+        # mengira aplikasi menggantung. Statusbar di-update dan dipaksa
+        # digambar SEBELUM penutupan dimulai.
+        self.label_status.setText("Menutup…")
+        self.label_status.repaint()
+
+        # --- 2. Putus sinyal worker SEBELUM menyentuh apa pun ---
+        #
+        # INI LANGKAH PALING PENTING, dan urutannya tidak boleh ditukar.
+        #
+        # Worker berjalan di thread sendiri dan bisa memancarkan sinyal
+        # KAPAN SAJA. Handler-nya menyentuh database dan widget:
+        #
+        #   * `_pada_postingan_masuk` menulis ke `self.db`
+        #   * `_pada_siklus_mulai` mengubah `self.aksi_refresh`
+        #
+        # Kalau sinyal datang setelah database ditutup, handler akan gagal
+        # dengan "Cannot operate on a closed database". Kalau datang setelah
+        # jendela dihancurkan, gagal dengan "wrapped C/C++ object has been
+        # deleted".
+        #
+        # Memutus sinyal lebih dulu menutup SEMUA jalur itu sekaligus —
+        # apa pun yang dilakukan worker setelah ini tidak akan menyentuh
+        # objek yang sedang dibongkar.
+        self._putus_sinyal_worker()
+
+        # --- 3. Hentikan timer & simpan data ---
         self.timer_poll.stop()
+        self._timer_feed.stop()
 
-        if self.worker is not None:
-            self.label_status.setText("Menghentikan…")
-            self.worker.hentikan()
-
-        self.pemuat_thumbnail.hentikan()
-        self.notifier.sembunyikan()
-
-        # simpan preferensi terakhir
-        self.config["lebar_panel_filter"] = self.splitter.sizes()[0] if self.splitter.sizes() else 260
+        ukuran = self.splitter.sizes()
+        self.config["lebar_panel_filter"] = ukuran[0] if ukuran else 260
         self._simpan_filter()
         cfg.simpan(self.config)
 
+        # Database ditutup SETELAH sinyal diputus — jadi tidak ada handler
+        # yang bisa menulis lagi ke sini.
         self.db.tutup()
+
+        # --- 4. Hentikan komponen latar ---
+        self.notifier.sembunyikan()
+        self.pemuat_thumbnail.hentikan(tunggu_ms=600)
+
+        # --- 5. Hentikan worker: tunggu singkat, lalu paksa bila perlu ---
+        if self.worker is not None:
+            if not self.worker.hentikan(tunggu_ms=1000):
+                # Worker masih tertahan di request jaringan (mis. sedang
+                # menunggu balasan X). Jangan biarkan jendela menggantung —
+                # hentikan paksa. Sinyalnya sudah diputus di langkah 2, jadi
+                # penghentian ini tidak bisa memicu error di UI.
+                self.worker.paksa_hentikan(tunggu_ms=600)
+
         super().closeEvent(event)
+
+    def _putus_sinyal_worker(self) -> None:
+        """Putus semua sinyal dari worker ke jendela ini.
+
+        Dipanggil sebelum menghentikan worker. Setelah sinyal diputus, apa
+        pun yang dilakukan worker tidak akan menyentuh widget jendela —
+        sehingga penghentian paksa tidak bisa memicu error di UI.
+
+        TAHAN TERHADAP OBJEK YANG SUDAH HILANG
+        ======================================
+        Worker bisa SELESAI SENDIRI di antara dua pemanggilan (mis. thread-nya
+        selesai tepat saat kita hendak memutus sinyalnya). Setelah itu objek
+        Python-nya sudah dibersihkan, dan menyentuh `self.worker.siklus_mulai`
+        memunculkan:
+
+            RuntimeError: wrapped C/C++ object of type PollerWorker
+                          has been deleted
+
+        Karena itu setiap akses ke atribut worker dibungkus try/except, dan
+        pemeriksaan `sip` dilakukan ulang di dalam loop. Tujuan fungsi ini
+        hanya "pastikan tidak ada jalur sinyal yang tersisa" — kalau objeknya
+        sudah hilang, jalurnya sudah pasti tertutup, jadi aman untuk berhenti.
+        """
+        if self.worker is None:
+            return
+
+        # Nama sinyal diambil sebagai string dulu, supaya kalau objeknya
+        # sudah hilang, kegagalannya terjadi di dalam try (bukan saat
+        # menyusun daftar di luar).
+        nama_sinyal = (
+            "siklus_mulai",
+            "akun_mulai",
+            "akun_selesai",
+            "postingan_masuk",
+            "siklus_selesai",
+            "catatan",
+            "profil_diperbarui",
+        )
+        handler = {
+            "siklus_mulai": self._pada_siklus_mulai,
+            "akun_mulai": self._pada_akun_mulai,
+            "akun_selesai": self._pada_akun_selesai,
+            "postingan_masuk": self._pada_postingan_masuk,
+            "siklus_selesai": self._pada_siklus_selesai,
+            "catatan": self._pada_catatan,
+            "profil_diperbarui": self._pada_profil,
+        }
+
+        for nama in nama_sinyal:
+            try:
+                sinyal = getattr(self.worker, nama)
+                sinyal.disconnect(handler[nama])
+            except (AttributeError, TypeError, RuntimeError):
+                # AttributeError  -> objek worker sudah dihapus
+                # TypeError       -> sinyal belum pernah tersambung
+                # RuntimeError    -> objek Qt-nya sudah tidak ada
+                # Ketiganya berarti "tidak ada yang perlu diputus".
+                continue

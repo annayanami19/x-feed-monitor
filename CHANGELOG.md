@@ -16,6 +16,23 @@ Jenis perubahan: `Ditambahkan` · `Diubah` · `Usang` · `Dihapus` · `Diperbaik
   Dibuat lewat `tools/buat_ikon.py` yang menghasilkan `assets/icon.ico` berisi
   7 ukuran (16/24/32/48/64/128/256 px), sehingga Windows bisa memakai ukuran
   yang tepat di tiap tempat.
+- `tools/uji_tutup.py` — uji ketahanan penutupan jendela. Menutup jendela pada
+  6 waktu berbeda relatif terhadap siklus polling, untuk memastikan tidak ada
+  error akibat race condition antara worker dan pembongkaran jendela.
+
+### Diperbaiki
+- **Aplikasi terlihat seperti crash saat ditutup** — menutup jendela bisa
+  menggantung sampai **13 detik**, sehingga Windows menampilkan dialog
+  "Not Responding". Penyebabnya `closeEvent` menunggu `worker.hentikan()`
+  sampai 15 detik, sementara worker bisa sedang berada di tengah request
+  jaringan ke X yang tidak bisa dibatalkan. Sekarang jendela ditutup dalam
+  **< 2 detik**: worker diberi waktu 1 detik, lalu dihentikan paksa bila perlu.
+- **Risiko error saat penutupan** — tiga jalur yang bisa gagal sudah ditutup:
+  (1) sinyal worker diputus lebih dulu sebelum database ditutup, sehingga
+  handler yang datang terlambat tidak menyentuh database yang sudah tutup;
+  (2) penanda `_sedang_tutup` menolak pekerjaan yang datang setelah penutupan
+  dimulai; (3) `paksa_hentikan()` dipanggil setelah sinyal diputus, jadi
+  penghentian paksa tidak bisa memicu error di UI.
 
 ---
 

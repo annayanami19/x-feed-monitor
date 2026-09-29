@@ -203,6 +203,13 @@ class PemuatThumbnail(QObject):
             except Exception:  # noqa: BLE001 - callback rusak tidak boleh menghentikan
                 pass
 
-    def hentikan(self) -> None:
+    def hentikan(self, tunggu_ms: int = 800) -> None:
+        """Hentikan unduhan thumbnail.
+
+        `clear()` membuang tugas yang belum mulai. Tugas yang sedang berjalan
+        tidak bisa dibatalkan (sedang menunggu jaringan), jadi `waitForDone`
+        diberi batas pendek: aplikasi sedang ditutup, dan menunggu unduhan
+        gambar selesai tidak sebanding dengan membuat jendela membeku.
+        """
         self._pool.clear()
-        self._pool.waitForDone(3000)
+        self._pool.waitForDone(tunggu_ms)

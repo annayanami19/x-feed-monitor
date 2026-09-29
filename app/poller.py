@@ -81,22 +81,76 @@ class PollerWorker(QObject):
         self._thread.started.connect(self._jalan)
         self._thread.start()
 
-    def hentikan(self) -> None:
-        """Minta worker berhenti dan tunggu thread-nya selesai.
+    def hentikan(self, tunggu_ms: int = 1200) -> bool:
+        """Minta worker berhenti. TIDAK memblokir lama.
 
-        Worker memeriksa flag `_berhenti` di antara akun dan di sela-sela
-        jeda, jadi penghentian biasanya selesai < 1 detik.
+        Mengembalikan True bila thread sudah benar-benar selesai.
+
+        MENGAPA TIDAK MENUNGGU LAMA
+        ===========================
+        Worker bisa sedang berada di tengah request jaringan ke X, dan
+        request yang sedang berjalan **tidak bisa dibatalkan** — Python
+        harus menunggu socket-nya selesai atau timeout. Dengan 3 akun,
+        totalnya bisa belasan detik.
+
+        Kalau GUI menunggu selama itu di `closeEvent`, Windows menganggap
+        jendela "Not Responding" dan menampilkan dialog yang terlihat
+        seperti aplikasi crash. Karena itu:
+
+          * tunggu sebentar saja (default 1,2 detik) supaya kasus normal
+            (worker sedang idle) selesai rapi
+          * kalau belum selesai, JANGAN menunggu lebih lama — kembalikan
+            False dan biarkan pemanggil memutuskan
+          * `tunggu_ms` menentukan berapa lama menunggu sebelum menyerah
         """
         self._berhenti = True
         self._minta_refresh = False
-        if self._loop is not None and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._bangunkan)
-        if self._thread is not None:
+
+        # Sama seperti paksa_hentikan(): objek Qt bisa sudah dibersihkan
+        # kalau thread selesai sendiri lebih dulu.
+        try:
+            if self._loop is not None and self._loop.is_running():
+                self._loop.call_soon_threadsafe(self._bangunkan)
+
+            if self._thread is None:
+                return True
+
             self._thread.quit()
-            if not self._thread.wait(15000):
-                # Jaring pengaman terakhir: jangan biarkan proses menggantung.
+            return bool(self._thread.wait(tunggu_ms))
+        except RuntimeError:
+            # Objek thread sudah dihapus -> thread sudah tidak berjalan.
+            # Itu artinya worker memang sudah berhenti: kembalikan True.
+            return True
+
+    def paksa_hentikan(self, tunggu_ms: int = 800) -> None:
+        """Hentikan paksa thread worker (dipakai saat menutup aplikasi).
+
+        Dipanggil HANYA setelah `hentikan()` gagal — artinya worker masih
+        tertahan di request jaringan. `terminate()` memang tidak rapi, tapi
+        pada tahap ini aplikasi sedang ditutup, dan menggantung lebih buruk
+        daripada penghentian yang tidak rapi.
+
+        Aman karena:
+          * database memakai WAL — penulisan yang belum selesai akan
+            di-rollback otomatis oleh SQLite
+          * config disimpan SEBELUM fungsi ini dipanggil
+          * tidak ada data pengguna yang hilang: yang tertahan hanyalah
+            request jaringan yang hasilnya belum tentu ada
+        """
+        if self._thread is None:
+            return
+
+        # Setiap akses ke objek Qt dibungkus: thread bisa sudah selesai
+        # sendiri di antara pemeriksaan, sehingga `self._thread` sudah
+        # tidak menunjuk objek yang sah.
+        try:
+            if self._thread.isRunning():
                 self._thread.terminate()
-                self._thread.wait(2000)
+                self._thread.wait(tunggu_ms)
+        except RuntimeError:
+            # "wrapped C/C++ object has been deleted" — thread sudah selesai
+            # dan objeknya dibersihkan. Justru itu yang kita inginkan.
+            pass
 
     # ------------------------------------------------------------------
     # Dipanggil dari GUI thread — aman karena hanya menyentuh flag
